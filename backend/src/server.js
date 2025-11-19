@@ -1,42 +1,47 @@
 import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import path from "path";
+
 import notesRoutes from "./routes/notesRoutes.js";
 import { connectDB } from "./config/db.js";
-import dotenv from "dotenv";
 import rateLimiter from "./middleware/rateLimiter.js";
-import cors from "cors";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const __dirname = path.resolve();
 
-connectDB();
-
-// Middleware to parse JSON bodies
-app.use(express.json());
-
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-    maxAge: 86400,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
-    exposedHeaders: ["Content-Range", "X-Total-Count"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// middleware
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    cors({
+      origin: "http://localhost:5173",
+    })
+  );
+}
+app.use(express.json()); // this middleware will parse JSON bodies: req.body
 app.use(rateLimiter);
-// Simple logging middleware (optional)
+
+// our simple custom middleware
 // app.use((req, res, next) => {
 //   console.log(`Req method is ${req.method} & Req URL is ${req.url}`);
+//   next();
 // });
 
 app.use("/api/notes", notesRoutes);
 
-app.listen(PORT, () => {
-  console.log("server started on port:", PORT);
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/vite-project/dist")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/vite-project", "dist", "index.html"));
+  });
+}
+
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log("Server started on PORT:", PORT);
+  });
 });
